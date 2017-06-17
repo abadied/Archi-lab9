@@ -15,7 +15,6 @@ int current_fd = -1;
 int debug_mode = 0;
 void* map_start = MAP_FAILED;
 
-
 void examineElfFile(char* filename){
     if(current_fd != -1){
         close(current_fd);
@@ -76,5 +75,4 @@ int main(int argc, char** argv){
 	strcpy(filename, argv[1]);
 	examineElfFile(filename);
 	printProgramHeaders();
-
 }
