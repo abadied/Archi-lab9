@@ -48,7 +48,10 @@
 %define PHDR_filesize	16
 %define	PHDR_offset	4
 %define	PHDR_vaddr	8
-	
+
+%define buffer 	ebp - 4
+%define fd 		ebp - 8
+
 global _start
 
 section .text
@@ -58,25 +61,62 @@ _start:
 	mov		ebp, esp
 	sub		esp, STK_RES            ; Set up ebp and reserve space on the stack for local storage
 
-	mov 	edx, OutStrSz
+	
 	call 	getpos
+
 getpos:
-	pop 	ecx
+	mov 	dword ecx, [esp]			; this operation is in TOS
+	
 	add 	ecx, OutStrOffset
+	mov 	edx, OutStrSz
 	mov 	ebx, 1
 
 	write 	ebx, ecx, edx
+	
+	
+	mov 	dword ebx, [esp]
+	add 	ebx, FileNameOffset
+	open 	ebx, 2, 0777
+	
+	cmp 	eax, 0
+	jle  	error
+	
+	mov 	dword [ebp - 8], eax
+	
+	read 	[ebp - 8], [ebp - 4], 4
+
+bpoint:
+	cmp 	dword [ebp - 4], 0x464C457F
+	jne 	VirusExit
+	
+	mov 	dword ecx, [esp]			; this operation is in TOS
+	
+	add 	ecx, OutStrOffset
+	mov 	edx, OutStrSz
+	mov 	ebx, 1
+
+	write 	ebx, ecx, edx
+	
 
 VirusExit:
    	exit 0          	; Termination if all is OK and no previous code to jump to
          	            ; (also an example for use of above macros)
-	
+
+error:
+	mov 	ecx, [esp]
+	add 	ecx, FailstrOffset
+	write 	1, ecx, FailstrSz
+	jmp 	VirusExit
+
+FileNameOffset: equ $ - getpos
 FileName:		db "ELFexec", 0
 OutStrOffset: 	equ $ - getpos
 OutStr:			db "The lab 9 proto-virus strikes!", 10, 0
 OutStrSz: 		equ $ - OutStr
+FailstrOffset:	equ $ - getpos
 Failstr:        db "perhaps not", 10 , 0
-	
+FailstrSz: 		equ $ - Failstr
+
 PreviousEntryPoint: dd VirusExit
 virus_end:
 
